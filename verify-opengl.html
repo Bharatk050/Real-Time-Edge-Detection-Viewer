@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenGL ES 2.0 Verification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 2em;
+        }
+        .info-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4ade80;
+        }
+        .info-item.error {
+            border-left-color: #f87171;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #4ade80;
+        }
+        .info-value {
+            margin-top: 5px;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            border: 2px solid white;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: block;
+            background: black;
+        }
+        .success {
+            color: #4ade80;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .error {
+            color: #f87171;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        button {
+            background: #4ade80;
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #22c55e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 OpenGL ES 2.0 Verification</h1>
+        <p>This page verifies that your browser supports OpenGL ES 2.0 (WebGL) for the Edge Detection application.</p>
+
+        <canvas id="testCanvas" width="400" height="300"></canvas>
+
+        <div id="webglSupport"></div>
+        <div id="webglInfo"></div>
+
+        <button onclick="location.href='index.html'">Go to Edge Detection App</button>
+    </div>
+
+    <script>
+        // Test WebGL support
+        const canvas = document.getElementById('testCanvas');
+        const supportDiv = document.getElementById('webglSupport');
+        const infoDiv = document.getElementById('webglInfo');
+
+        try {
+            // Try to get WebGL context
+            const gl = canvas.getContext('webgl', {
+                powerPreference: 'high-performance'
+            });
+
+            if (!gl) {
+                throw new Error('WebGL not available');
+            }
+
+            // Success!
+            supportDiv.innerHTML = `
+                <div class="info-item">
+                    <div class="success">✅ WebGL (OpenGL ES 2.0) is SUPPORTED!</div>
+                </div>
+            `;
+
+            // Get WebGL information
+            const version = gl.getParameter(gl.VERSION);
+            const vendor = gl.getParameter(gl.VENDOR);
+            const renderer = gl.getParameter(gl.RENDERER);
+            const shadingLanguageVersion = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+            const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            const maxViewportDims = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+
+            infoDiv.innerHTML = `
+                <h2>WebGL Information</h2>
+                <div class="info-item">
+                    <div class="info-label">Version:</div>
+                    <div class="info-value">${version}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Vendor:</div>
+                    <div class="info-value">${vendor}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Renderer (GPU):</div>
+                    <div class="info-value">${renderer}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Shading Language Version:</div>
+                    <div class="info-value">${shadingLanguageVersion}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Max Texture Size:</div>
+                    <div class="info-value">${maxTextureSize}x${maxTextureSize} pixels</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Max Viewport Dimensions:</div>
+                    <div class="info-value">${maxViewportDims[0]}x${maxViewportDims[1]} pixels</div>
+                </div>
+            `;
+
+            // Draw a test triangle to verify rendering works
+            const vertexShaderSource = `
+                attribute vec2 a_position;
+                void main() {
+                    gl_Position = vec4(a_position, 0.0, 1.0);
+                }
+            `;
+
+            const fragmentShaderSource = `
+                precision mediump float;
+                void main() {
+                    gl_FragColor = vec4(0.29, 0.87, 0.5, 1.0); // Green
+                }
+            `;
+
+            // Compile shaders
+            const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, vertexShaderSource);
+            gl.compileShader(vertexShader);
+
+            const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, fragmentShaderSource);
+            gl.compileShader(fragmentShader);
+
+            // Create program
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            gl.useProgram(program);
+
+            // Create buffer with triangle vertices
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            const positions = new Float32Array([
+                0.0, 0.5,
+                -0.5, -0.5,
+                0.5, -0.5
+            ]);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+            // Setup attribute
+            const positionLocation = gl.getAttribLocation(program, 'a_position');
+            gl.enableVertexAttribArray(positionLocation);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+            // Clear and draw
+            gl.clearColor(0.1, 0.1, 0.15, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+            console.log('✅ WebGL test triangle rendered successfully');
+
+        } catch (error) {
+            // WebGL not supported
+            supportDiv.innerHTML = `
+                <div class="info-item error">
+                    <div class="error">❌ WebGL (OpenGL ES 2.0) is NOT SUPPORTED!</div>
+                    <div class="info-value" style="margin-top: 10px;">Error: ${error.message}</div>
+                </div>
+            `;
+
+            infoDiv.innerHTML = `
+                <h2>Troubleshooting</h2>
+                <div class="info-item error">
+                    <div class="info-label">What to do:</div>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>Update your browser to the latest version</li>
+                        <li>Update your graphics drivers</li>
+                        <li>Enable hardware acceleration in browser settings</li>
+                        <li>Try a different browser (Chrome, Firefox, Edge)</li>
+                        <li>Check chrome://gpu for more details (Chrome/Edge)</li>
+                    </ul>
+                </div>
+            `;
+
+            console.error('❌ WebGL not supported:', error);
+        }
+    </script>
+</body>
+</html>
+

@@ -3,8 +3,10 @@
  * Real-time Edge Detection with TypeScript
  */
 
-import { EdgeDetectionConfig, EdgeDetectionMethod, FPSCounter, ProcessingState } from './types.js';
+import { EdgeDetectionConfig, EdgeDetectionMethod, FPSCounter, ProcessingState, ProcessingMode } from './types.js';
 import { EdgeDetector } from './edge-detection.js';
+import { WebGLRenderer } from './webgl-renderer.js';
+import { OpenCVProcessor } from './opencv-processor.js';
 
 class EdgeDetectionApp {
     // DOM Elements
@@ -12,9 +14,11 @@ class EdgeDetectionApp {
     private readonly inputCanvas: HTMLCanvasElement;
     private readonly outputCanvas: HTMLCanvasElement;
     private readonly inputCtx: CanvasRenderingContext2D;
-    private readonly outputCtx: CanvasRenderingContext2D;
+    private readonly webglRenderer: WebGLRenderer;
+    private readonly opencvProcessor: OpenCVProcessor;
     private readonly statusDiv: HTMLElement;
     private readonly fpsDisplay: HTMLElement;
+    private readonly modeStatus: HTMLElement;
 
     // Control Elements
     private readonly startBtn: HTMLButtonElement;
@@ -33,7 +37,8 @@ class EdgeDetectionApp {
     private config: EdgeDetectionConfig = {
         threshold: 40,
         blurAmount: 1,
-        method: 'sobel'
+        method: 'sobel',
+        mode: 'opencv'
     };
 
     private fpsCounter: FPSCounter = {
@@ -49,6 +54,7 @@ class EdgeDetectionApp {
         this.outputCanvas = this.getElement<HTMLCanvasElement>('outputCanvas');
         this.statusDiv = this.getElement<HTMLElement>('status');
         this.fpsDisplay = this.getElement<HTMLElement>('fpsDisplay');
+        this.modeStatus = this.getElement<HTMLElement>('modeStatus');
 
         this.startBtn = this.getElement<HTMLButtonElement>('startBtn');
         this.stopBtn = this.getElement<HTMLButtonElement>('stopBtn');
@@ -58,17 +64,43 @@ class EdgeDetectionApp {
 
         // Get canvas contexts
         const inputCtx = this.inputCanvas.getContext('2d', { willReadFrequently: true });
-        const outputCtx = this.outputCanvas.getContext('2d', { willReadFrequently: true });
 
-        if (!inputCtx || !outputCtx) {
-            throw new Error('Failed to get canvas contexts');
+        if (!inputCtx) {
+            throw new Error('Failed to get input canvas context');
         }
 
         this.inputCtx = inputCtx;
-        this.outputCtx = outputCtx;
+
+        // Initialize WebGL renderer for output (OpenGL ES 2.0)
+        try {
+            this.webglRenderer = new WebGLRenderer(this.outputCanvas);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            throw new Error(`Failed to initialize WebGL renderer: ${message}`);
+        }
+
+        // Initialize OpenCV processor (C++ via WebAssembly)
+        this.opencvProcessor = new OpenCVProcessor();
+        this.initializeOpenCV();
 
         this.initializeEventListeners();
         this.updateStatus('Ready! Click "Start Camera" to begin.', '');
+    }
+
+    /**
+     * Initialize OpenCV.js (WebAssembly)
+     */
+    private async initializeOpenCV(): Promise<void> {
+        try {
+            this.modeStatus.textContent = '⏳ Loading OpenCV.js...';
+            await this.opencvProcessor.initialize();
+            this.modeStatus.textContent = '✅ OpenCV C++ Ready! (WebAssembly)';
+            console.log('✅ OpenCV C++ processor initialized via WebAssembly');
+        } catch (error) {
+            console.warn('⚠️ OpenCV.js not available, falling back to TypeScript');
+            this.modeStatus.textContent = '⚠️ OpenCV not available (using TypeScript)';
+            this.config.mode = 'typescript';
+        }
     }
 
     /**
@@ -91,8 +123,19 @@ class EdgeDetectionApp {
         this.stopBtn.addEventListener('click', () => this.stopWebcam());
         this.captureBtn.addEventListener('click', () => this.captureScreenshot());
 
+        // Processing mode selection
+        const opencvModeBtn = document.getElementById('opencvModeBtn');
+        const typescriptModeBtn = document.getElementById('typescriptModeBtn');
+        
+        if (opencvModeBtn) {
+            opencvModeBtn.addEventListener('click', () => this.selectMode('opencv'));
+        }
+        if (typescriptModeBtn) {
+            typescriptModeBtn.addEventListener('click', () => this.selectMode('typescript'));
+        }
+
         // Algorithm selection
-        const methods: EdgeDetectionMethod[] = ['sobel', 'canny', 'roberts', 'prewitt', 'laplacian'];
+        const methods: EdgeDetectionMethod[] = ['sobel', 'canny', 'roberts', 'prewitt', 'laplacian', 'grayscale'];
         methods.forEach(method => {
             const btn = document.getElementById(`${method}Btn`);
             if (btn) {
@@ -147,13 +190,52 @@ class EdgeDetectionApp {
     }
 
     /**
+     * Select processing mode
+     */
+    private selectMode(mode: ProcessingMode): void {
+        // Check if OpenCV is available
+        if (mode === 'opencv' && !this.opencvProcessor.ready()) {
+            alert('OpenCV.js is not loaded yet. Please wait or use TypeScript mode.');
+            return;
+        }
+
+        this.config.mode = mode;
+
+        // Update mode button states
+        const opencvBtn = document.getElementById('opencvModeBtn');
+        const typescriptBtn = document.getElementById('typescriptModeBtn');
+        
+        if (opencvBtn && typescriptBtn) {
+            opencvBtn.classList.remove('active');
+            typescriptBtn.classList.remove('active');
+            
+            if (mode === 'opencv') {
+                opencvBtn.classList.add('active');
+                this.modeStatus.textContent = '✅ Using OpenCV C++ (WebAssembly)';
+            } else {
+                typescriptBtn.classList.add('active');
+                this.modeStatus.textContent = '📝 Using TypeScript (Pure JS)';
+            }
+        }
+
+        console.log(`Switched to ${mode} processing mode`);
+    }
+
+    /**
      * Select edge detection algorithm
      */
     private selectAlgorithm(method: EdgeDetectionMethod): void {
+        // Check if grayscale is only for OpenCV
+        if (method === 'grayscale' && this.config.mode !== 'opencv') {
+            alert('Grayscale filter is only available in OpenCV mode.');
+            return;
+        }
+
         this.config.method = method;
 
-        // Update button states
-        document.querySelectorAll('.algorithm-btn').forEach(btn => {
+        // Update button states (only algorithm buttons)
+        const algorithmButtons = document.querySelectorAll('.algorithm-btn[data-method]');
+        algorithmButtons.forEach(btn => {
             btn.classList.remove('active');
         });
 
@@ -188,7 +270,10 @@ class EdgeDetectionApp {
                 this.outputCanvas.width = width;
                 this.outputCanvas.height = height;
 
-                this.updateStatus('Camera active! Processing in real-time...', 'success');
+                // Update WebGL viewport
+                this.webglRenderer.resize(width, height);
+
+                this.updateStatus('Camera active! Processing in real-time (OpenGL ES 2.0)...', 'success');
                 this.startBtn.disabled = true;
                 this.stopBtn.disabled = false;
                 this.captureBtn.disabled = false;
@@ -248,35 +333,78 @@ class EdgeDetectionApp {
                 this.inputCanvas.height
             );
 
-            // Apply blur if needed
-            if (this.config.blurAmount > 0) {
-                imageData = EdgeDetector.gaussianBlur(imageData, this.config.blurAmount);
-            }
-
-            // Apply edge detection
+            // Process frame based on mode
             let result: ImageData;
-            switch (this.config.method) {
-                case 'sobel':
-                    result = EdgeDetector.sobel(imageData, this.config.threshold);
-                    break;
-                case 'canny':
-                    result = EdgeDetector.canny(imageData, this.config.threshold);
-                    break;
-                case 'roberts':
-                    result = EdgeDetector.roberts(imageData, this.config.threshold);
-                    break;
-                case 'prewitt':
-                    result = EdgeDetector.prewitt(imageData, this.config.threshold);
-                    break;
-                case 'laplacian':
-                    result = EdgeDetector.laplacian(imageData, this.config.threshold);
-                    break;
-                default:
-                    result = EdgeDetector.sobel(imageData, this.config.threshold);
+
+            if (this.config.mode === 'opencv' && this.opencvProcessor.ready()) {
+                // Use OpenCV C++ (WebAssembly) for processing
+                // Apply blur if needed
+                if (this.config.blurAmount > 0) {
+                    imageData = this.opencvProcessor.gaussianBlur(imageData, this.config.blurAmount * 2 + 1);
+                }
+
+                // Apply edge detection with OpenCV
+                switch (this.config.method) {
+                    case 'sobel':
+                        result = this.opencvProcessor.sobel(imageData);
+                        break;
+                    case 'canny':
+                        result = this.opencvProcessor.canny(imageData, this.config.threshold, this.config.threshold * 2);
+                        break;
+                    case 'laplacian':
+                        result = this.opencvProcessor.laplacian(imageData);
+                        break;
+                    case 'grayscale':
+                        result = this.opencvProcessor.grayscale(imageData);
+                        break;
+                    case 'roberts':
+                    case 'prewitt':
+                        // Fall back to TypeScript for algorithms not in OpenCV wrapper
+                        if (this.config.blurAmount > 0) {
+                            imageData = EdgeDetector.gaussianBlur(imageData, this.config.blurAmount);
+                        }
+                        result = this.config.method === 'roberts' 
+                            ? EdgeDetector.roberts(imageData, this.config.threshold)
+                            : EdgeDetector.prewitt(imageData, this.config.threshold);
+                        break;
+                    default:
+                        result = this.opencvProcessor.sobel(imageData);
+                }
+            } else {
+                // Use TypeScript implementation
+                // Apply blur if needed
+                if (this.config.blurAmount > 0) {
+                    imageData = EdgeDetector.gaussianBlur(imageData, this.config.blurAmount);
+                }
+
+                // Apply edge detection with TypeScript
+                switch (this.config.method) {
+                    case 'sobel':
+                        result = EdgeDetector.sobel(imageData, this.config.threshold);
+                        break;
+                    case 'canny':
+                        result = EdgeDetector.canny(imageData, this.config.threshold);
+                        break;
+                    case 'roberts':
+                        result = EdgeDetector.roberts(imageData, this.config.threshold);
+                        break;
+                    case 'prewitt':
+                        result = EdgeDetector.prewitt(imageData, this.config.threshold);
+                        break;
+                    case 'laplacian':
+                        result = EdgeDetector.laplacian(imageData, this.config.threshold);
+                        break;
+                    case 'grayscale':
+                        // Grayscale not available in TypeScript mode
+                        result = EdgeDetector.sobel(imageData, this.config.threshold);
+                        break;
+                    default:
+                        result = EdgeDetector.sobel(imageData, this.config.threshold);
+                }
             }
 
-            // Display result
-            this.outputCtx.putImageData(result, 0, 0);
+            // Render result using WebGL (OpenGL ES 2.0)
+            this.webglRenderer.render(result);
 
             // Update FPS
             this.updateFPS();
@@ -312,11 +440,12 @@ class EdgeDetectionApp {
         try {
             const link = document.createElement('a');
             link.download = `edge_detection_${Date.now()}.png`;
+            // WebGL canvas can be directly converted to data URL
             link.href = this.outputCanvas.toDataURL();
             link.click();
-            this.updateStatus('Screenshot saved!', 'success');
+            this.updateStatus('Screenshot saved! (OpenGL ES 2.0 rendered)', 'success');
             setTimeout(() => {
-                this.updateStatus('Camera active! Processing in real-time...', 'success');
+                this.updateStatus('Camera active! Processing in real-time (OpenGL ES 2.0)...', 'success');
             }, 2000);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';

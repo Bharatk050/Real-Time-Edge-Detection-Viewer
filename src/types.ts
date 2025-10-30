@@ -2,12 +2,15 @@
  * Type definitions for the Edge Detection application
  */
 
-export type EdgeDetectionMethod = 'sobel' | 'canny' | 'roberts' | 'prewitt' | 'laplacian';
+export type EdgeDetectionMethod = 'sobel' | 'canny' | 'roberts' | 'prewitt' | 'laplacian' | 'grayscale';
+
+export type ProcessingMode = 'opencv' | 'typescript';
 
 export interface EdgeDetectionConfig {
     threshold: number;
     blurAmount: number;
     method: EdgeDetectionMethod;
+    mode: ProcessingMode;
 }
 
 export interface FPSCounter {

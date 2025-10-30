@@ -35,15 +35,15 @@ def main():
     Handler = MyHTTPRequestHandler
     
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        print(f"╔══════════════════════════════════════════════════╗")
-        print(f"║  Edge Detection Server Running                   ║")
-        print(f"╚══════════════════════════════════════════════════╝")
-        print(f"")
-        print(f"  🌐 Server: http://localhost:{PORT}")
-        print(f"  📁 Directory: {os.getcwd()}")
-        print(f"")
-        print(f"  Press Ctrl+C to stop the server")
-        print(f"")
+        print("=" * 52)
+        print("  Edge Detection Server Running")
+        print("=" * 52)
+        print("")
+        print(f"  Server: http://localhost:{PORT}")
+        print(f"  Directory: {os.getcwd()}")
+        print("")
+        print("  Press Ctrl+C to stop the server")
+        print("")
         
         try:
             httpd.serve_forever()
