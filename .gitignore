@@ -1,10 +1,38 @@
 # Build directories
 build/
 opencv_build/
+dist/
 
 # Compiled WebAssembly files
 edge_detector.js
 edge_detector.wasm
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# TypeScript
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # IDE files
 .vscode/
@@ -12,6 +40,8 @@ edge_detector.wasm
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS files
 .DS_Store
@@ -20,11 +50,20 @@ desktop.ini
 
 # Logs
 *.log
+logs/
 
 # Temporary files
 *.tmp
 *.temp
 
-# Node modules (if using npm)
-node_modules/
+# Coverage and testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
 
