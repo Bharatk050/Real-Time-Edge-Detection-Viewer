@@ -1,0 +1,30 @@
+# Build directories
+build/
+opencv_build/
+
+# Compiled WebAssembly files
+edge_detector.js
+edge_detector.wasm
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (if using npm)
+node_modules/
+
